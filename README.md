@@ -57,11 +57,23 @@ The checked-in world is ready to use. To regenerate it with Webots R2025a refere
 python worlds/generate_wbt.py
 ```
 
-Open `worlds/generated_world.wbt` in Webots R2025a and start the simulation. Its supervisor uses Webots' `<extern>` controller mode on `ipc://1234/supervisor`. In another terminal, activate the conda environment and launch one scenario:
+The scenario launchers can manage Webots for you. Their first argument selects the simulation mode:
+
+- `fast`: headless, no rendering, maximum simulation speed.
+- `slow`: visible Webots GUI in realtime mode.
+- `existing` (default): use the Webots world you already opened yourself.
+
+For a fast background evaluation:
 
 ```bash
 conda activate physwarm
-sh controllers/Swarm_Foraging/supervisor_controller/train_mappo.sh
+sh controllers/Swarm_Foraging/supervisor_controller/train_mappo.sh fast
+```
+
+For visible realtime evaluation, use `slow` instead. The Webots process started by either mode is stopped when the evaluation exits. The launcher accepts additional `train_prey.py` options after the mode; for a short check, use:
+
+```bash
+sh controllers/Swarm_Foraging/supervisor_controller/train_mappo.sh fast --episode_length 20 --num_eval_episodes 1
 ```
 
 The navigation and rescue launchers are at:
@@ -71,7 +83,7 @@ controllers/Swarm_Navigation/supervisor_controller/train_mappo.sh
 controllers/Swarm_Rescue/supervisor_controller/train_mappo.sh
 ```
 
-Each launcher configures the native Webots libraries, defaults `WEBOTS_CONTROLLER_URL` to that local supervisor URL, and passes `--device auto`. Override `WEBOTS_CONTROLLER_URL` when Webots uses another port. To force a backend, invoke `train_prey.py` from the relevant `supervisor_controller` directory with `--device mps` or `--device cpu`. An unavailable requested MPS backend emits a warning and safely uses the CPU.
+Each launcher configures the native Webots libraries, defaults `WEBOTS_CONTROLLER_URL` to `ipc://1234/supervisor`, and passes `--device auto`. Override `WEBOTS_CONTROLLER_URL` when Webots uses another port. To force a backend, invoke `train_prey.py` from the relevant `supervisor_controller` directory with `--device mps` or `--device cpu`. An unavailable requested MPS backend emits a warning and safely uses the CPU.
 
 Local TensorBoardX logging is the default. Pass `--wandb` only when you intentionally want to enable Weights & Biases network logging.
 

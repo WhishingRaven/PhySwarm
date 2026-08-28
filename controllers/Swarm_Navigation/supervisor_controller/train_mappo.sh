@@ -4,6 +4,9 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$script_dir"
 
+project_root=$(CDPATH= cd -- "$script_dir/../../.." && pwd)
+. "$project_root/controllers/common/webots_launcher.sh"
+
 : "${WEBOTS_HOME:=/Applications/Webots.app}"
 : "${WEBOTS_CONTROLLER_URL:=ipc://1234/supervisor}"
 export WEBOTS_HOME
@@ -11,6 +14,13 @@ export WEBOTS_CONTROLLER_URL
 export PYTHONPATH="$WEBOTS_HOME/Contents/lib/controller/python${PYTHONPATH:+:$PYTHONPATH}"
 export DYLD_LIBRARY_PATH="$WEBOTS_HOME/Contents/lib/controller${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 export PYTORCH_ENABLE_MPS_FALLBACK=1
+
+simulation_mode=${1:-existing}
+if [ "$#" -gt 0 ]; then
+    shift
+fi
+start_physwarm_webots "$simulation_mode" "$project_root"
+trap stop_physwarm_webots EXIT HUP INT TERM
 
 env="Dynamical_system"
 algo="mappo"
@@ -31,6 +41,6 @@ while [ "$seed" -le "$seed_max" ]; do
     --msg_iterations 4  --adj_output_dim 32  --eval_interval 100000 --num_eval_episodes 50 --buffer_size 32 --num_mini_batch 4 --data_chunk_length 50 --log_interval 600 --save_interval 50000 \
     --highest_orders 6 --lr 3e-4 --critic_lr 5e-4 --train_interval_episode 32 --gamma 0.99 --use_valuenorm --use_linear_lr_decay \
     --entropy_coef 0.0 --capture_freezes --num_rank 1 --sparsity 0.3  --gain 0.01 --gae_lambda 0.95  --use_vfunction \
-    --n_rollout_threads 1 --num_agents 8  --num_obs_targets 0 --num_target 0 --model_dir ../models/
+    --n_rollout_threads 1 --num_agents 8  --num_obs_targets 0 --num_target 0 --model_dir ../models/ "$@"
     seed=$((seed + 1))
 done
