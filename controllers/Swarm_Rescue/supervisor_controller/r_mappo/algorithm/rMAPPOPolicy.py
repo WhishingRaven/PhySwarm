@@ -1,11 +1,9 @@
 import numpy as np
 import torch
-import torch_scatter
 import time
 import torch.nn.functional as F
 from supervisor_controller.r_mappo.algorithm.act_layer import DiagGaussian, Categorical
 from supervisor_controller.r_mappo.algorithm.v_out import VFunction
-from sympy.physics.quantum.density import entropy
 from supervisor_controller.utils.util import get_dim_from_space, is_discrete, is_multidiscrete, make_onehot, DecayThenFlatSchedule, avail_choose, to_torch, to_numpy
 from supervisor_controller.r_mappo.base.mlp_policy import MLPPolicy
 from supervisor_controller.r_mappo.algorithm.rnn import RNNBase

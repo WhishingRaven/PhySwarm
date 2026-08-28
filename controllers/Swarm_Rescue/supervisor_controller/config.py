@@ -11,9 +11,10 @@ def get_config():
     parser.add_argument("--experiment_name", type=str, default="check")
     parser.add_argument("--seed", type=int, default=1,
                         help="Random seed for numpy/torch")
-    parser.add_argument("--cuda", action='store_false', default=True)
-    parser.add_argument("--cuda_deterministic",
-                        action='store_false', default=True)
+    parser.add_argument("--device", choices=("auto", "mps", "cpu"), default="auto",
+                        help="PyTorch device; auto prefers Apple Metal and falls back to CPU")
+    parser.add_argument("--deterministic", action=argparse.BooleanOptionalAction,
+                        default=True, help="Use deterministic PyTorch algorithms where available")
     parser.add_argument('--n_training_threads', type=int,
                         default=1, help="Number of torch threads for training")
     parser.add_argument('--n_rollout_threads', type=int,  default=1,
@@ -22,8 +23,8 @@ def get_config():
                         help="Number of parallel envs for evaluating rollout")
     parser.add_argument('--num_env_steps', type=int,
                         default=2000000, help="Number of env steps to train for")
-    parser.add_argument('--use_wandb', action='store_false', default=True,
-                        help="Whether to use weights&biases, if not, use tensorboardX instead")
+    parser.add_argument('--wandb', dest='use_wandb', action=argparse.BooleanOptionalAction,
+                        default=False, help="Enable Weights & Biases; local TensorBoardX logs are the default")
     parser.add_argument('--user_name', type=str, default="zoeyuchao")
 
     # env parameters

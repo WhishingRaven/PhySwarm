@@ -26,7 +26,7 @@ V_point = -(Y - pc[1])
 
 ax.contourf(X, Y, Phi_point, levels=30, cmap='Blues_r', alpha=0.8)
 ax.streamplot(X, Y, U_point, V_point, color='black', linewidth=1.2, density=0.8, arrowsize=1.5)
-ax.plot(pc[0], pc[1], 'r*', markersize=18, markeredgecolor='black', label='Target $\mathbf{p}_c$')
+ax.plot(pc[0], pc[1], 'r*', markersize=18, markeredgecolor='black', label=r'Target $\mathbf{p}_c$')
 ax.legend(loc='upper right', framealpha=0.9, fontsize=11)
 format_ax(ax, r"1. Point attraction/repulsion field ($\Phi_{point}$)")
 
@@ -44,7 +44,7 @@ V_shape = -error * (beta * Y / dist_safe)
 ax.contourf(X, Y, Phi_shape, levels=30, cmap='Purples_r', alpha=0.8)
 ax.streamplot(X, Y, U_shape, V_shape, color='black', linewidth=1.2, density=0.9, arrowsize=1.5)
 theta = np.linspace(0, 2*np.pi, 100)
-ax.plot(R0*np.cos(theta), (R0/np.sqrt(beta))*np.sin(theta), 'r--', lw=3, label='Manifold $\mathcal{M}_{\\beta}$')
+ax.plot(R0*np.cos(theta), (R0/np.sqrt(beta))*np.sin(theta), 'r--', lw=3, label=r'Manifold $\mathcal{M}_{\beta}$')
 ax.legend(loc='upper right', framealpha=0.9, fontsize=11)
 format_ax(ax, r"2. Manifold or morphology field ($\Phi_{shape}$)")
 
@@ -66,7 +66,7 @@ V_info_a = -(Y - p_shared[1])
 
 ax.contourf(X, Y, Phi_info_a, levels=30, cmap='GnBu_r', alpha=0.8)
 ax.streamplot(X, Y, U_info_a, V_info_a, color='gray', linewidth=1.2, density=0.8, arrowsize=1.5)
-ax.plot(p_shared[0], p_shared[1], '*', markersize=16, markeredgecolor='black', label='$\mathbf{P}_{shared}$')
+ax.plot(p_shared[0], p_shared[1], '*', markersize=16, markeredgecolor='black', label=r'$\mathbf{P}_{shared}$')
 for r in [1, 2, 3]:
     ax.add_patch(Circle((p_shared[0], p_shared[1]), r, color='magenta', fill=False, linestyle=':', lw=2, alpha=0.6))
 ax.legend(loc='upper right', framealpha=0.9, fontsize=11)
@@ -109,7 +109,7 @@ for ax_x, ax_y in zip(agents_x, agents_y):
 ax.quiver(agents_x, agents_y, -(agents_x - lc_x), -(agents_y - lc_y), 
           color='black', scale=8, width=0.008, headwidth=4, zorder=5)
 ax.plot(agents_x, agents_y, 'co', markersize=10, markeredgecolor='black', zorder=6, label='Local Agents')
-ax.plot(lc_x, lc_y, 'gD', markersize=12, markeredgecolor='black', zorder=6, label='Centroid $\mathbf{x}_{lc}$')
+ax.plot(lc_x, lc_y, 'gD', markersize=12, markeredgecolor='black', zorder=6, label=r'Centroid $\mathbf{x}_{lc}$')
 ax.legend(loc='upper right', framealpha=0.9, fontsize=11)
 format_ax(ax, r"5. Local-centroid cohesion field ($\Phi_{soc}$)")
 
@@ -125,9 +125,9 @@ V_coup = 0.5 * ((kv - ku) * X - (kv + ku) * Y)
 ax.contourf(X, Y, Phi_coup, levels=30, cmap='YlOrRd_r', alpha=0.8)
 ax.streamplot(X, Y, U_coup, V_coup, color='black', linewidth=1.2, density=0.8, arrowsize=1.5)
 
-ax.plot(pA[0], pA[1], 'gP', markersize=12, markeredgecolor='black', label='Base $\mathbf{p}_A$')
-ax.plot(pB[0], pB[1], 'r*', markersize=16, markeredgecolor='black', label='Target $\mathbf{p}_B$')
-ax.plot(0, 0, 'cD', markersize=10, markeredgecolor='black', label='Relay $\mathbf{p}_{mid}$')
+ax.plot(pA[0], pA[1], 'gP', markersize=12, markeredgecolor='black', label=r'Base $\mathbf{p}_A$')
+ax.plot(pB[0], pB[1], 'r*', markersize=16, markeredgecolor='black', label=r'Target $\mathbf{p}_B$')
+ax.plot(0, 0, 'cD', markersize=10, markeredgecolor='black', label=r'Relay $\mathbf{p}_{mid}$')
 ax.plot([pA[0], pB[0]], [pA[1], pB[1]], 'k--', alpha=0.4, lw=1.5)
 ax.legend(loc='upper right', framealpha=0.9, fontsize=11)
 format_ax(ax, r"6. Bipolar relay or coupling field ($\Phi_{coup}$)")

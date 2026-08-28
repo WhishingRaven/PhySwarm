@@ -109,9 +109,9 @@ class AdjPolicyBuffer(object):
         :param buffer_size: (int) max number of episodes to store in buffer.
         :param episode_length: (int) max length of an episode.
         :param num_agents: (int) number of agents controlled by the policy.
-        :param obs_space: (gym.Space) observation space of the environment.
-        :param share_obs_space: (gym.Space) centralized observation space of the environment.
-        :param act_space: (gym.Space) action space of the environment.
+        :param obs_space: (gymnasium.Space) observation space of the environment.
+        :param share_obs_space: (gymnasium.Space) centralized observation space of the environment.
+        :param act_space: (gymnasium.Space) action space of the environment.
         :use_same_share_obs: (bool) whether all agents share the same centralized observation.
         :use_avail_acts: (bool) whether to store what actions are available.
         :param use_reward_normalization: (bool) whether to use reward normalization.

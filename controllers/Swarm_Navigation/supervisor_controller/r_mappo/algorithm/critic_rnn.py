@@ -8,7 +8,7 @@ class critic_RNNBase(nn.Module):
     它现在接收形状为 [时间步, 批量大小, 智能体数量, 特征维度] 的结构化全局状态，
     并通过一个聚合层来处理它，然后再送入 RNN。
     """
-    def __init__(self, args, input_shape, hidden_size, out_shape, device=torch.device("cuda:0")):
+    def __init__(self, args, input_shape, hidden_size, out_shape, device=torch.device("cpu")):
         nn.Module.__init__(self)
         self.args = args
         self.use_ReLU = self.args.use_ReLU
@@ -86,7 +86,7 @@ class critic_RNNBase(nn.Module):
 
 # class critic_RNNBase(nn.Module):
 #     """ Identical to rnn_agent, but does not compute value/probability for each action, only the hidden state. """
-#     def __init__(self, args, input_shape, hidden_size, out_shape, device=torch.device("cuda:0")):
+#     def __init__(self, args, input_shape, hidden_size, out_shape, device=torch.device("cpu")):
 #         nn.Module.__init__(self)
 #         self.args = args
 #         self.use_ReLU = self.args.use_ReLU

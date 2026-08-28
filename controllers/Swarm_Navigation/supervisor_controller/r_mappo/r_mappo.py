@@ -5,10 +5,8 @@ from supervisor_controller.utils.valuenorm import ValueNorm
 import numpy as np
 import torch.nn.functional as F
 
-from torchviz import make_dot
-
 class R_MAPPO:
-    def __init__(self, args, num_agents, policies, policy_mapping_fn, device=torch.device("cuda:0"), episode_length=25,vdn=False):
+    def __init__(self, args, num_agents, policies, policy_mapping_fn, device=torch.device("cpu"), episode_length=25,vdn=False):
         """
         Trainer class for QMix with MLP policies. See parent class for more information.
         :param vdn: (bool) whether the algorithm in use is VDN.

@@ -1,9 +1,16 @@
 # coding = utf-8
-from deepbots.robots.controllers.csv_robot import CSVRobot
-import os
-import numpy as np
+from pathlib import Path
 import sys
-sys.path.append('..')
+
+CONTROLLERS_ROOT = Path(__file__).resolve().parents[1]
+if str(CONTROLLERS_ROOT) not in sys.path:
+    sys.path.insert(0, str(CONTROLLERS_ROOT))
+
+from common.webots_runtime import configure_webots_runtime
+
+configure_webots_runtime()
+
+from common.csv_robot import CSVRobot
 from Swarm_Foraging.supervisor_controller.config import get_config
 args = get_config().parse_known_args()[0]
 
@@ -63,13 +70,11 @@ class Epuck2Robot(CSVRobot):
             print(f"Error: Agent {self.getName()} trying to access index {idx} but message len is {len(message)}")
             return
 
-        speed = np.zeros(2)
-        speed[0] = float(message[idx*2])
-        speed[1] = float(message[idx*2+1])
+        speed = [float(message[idx * 2]), float(message[idx * 2 + 1])]
 
         for i in range(len(self.wheels)):
             self.wheels[i].setPosition(float('inf'))
             self.wheels[i].setVelocity(speed[i])
 
 robot_controller = Epuck2Robot()
-robot_controller.run()  
+robot_controller.run()

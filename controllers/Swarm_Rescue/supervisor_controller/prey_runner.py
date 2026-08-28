@@ -35,10 +35,9 @@ class PREYRunner(RecRunner):
         self.act_dim = self.policies['policy_0'].act_dim
         env = self.env
 
-        env.reset()
-        obs = env.get_observations()
-        share_obs = env.get_state()
-        obs_neighbor_num = env.obs_neighbor_num_buf.copy()
+        observation, _ = env.reset()
+        obs_corr, share_obs = observation
+        obs, obs_neighbor_num = obs_corr
 
         rnn_states = np.zeros((self.num_envs, self.num_agents, self.hidden_size), dtype=np.float32)
         rnn_critic_states = np.zeros((self.num_envs, self.num_agents, self.hidden_size), dtype=np.float32)
@@ -89,17 +88,20 @@ class PREYRunner(RecRunner):
             values = values_torch.cpu().numpy()
             new_rnn_states = new_rnn_states_flat.cpu().numpy().reshape(self.num_envs, self.num_agents, -1)
 
-            next_obs_corr, next_share_obs, rewards, dones, info = env.step(acts)
+            next_observation, rewards, terminated, truncated, info = env.step(acts)
+            next_obs_corr, next_share_obs = next_observation
             next_obs = next_obs_corr[0]
             next_obs_neighbor_num = next_obs_corr[1]
+            dones = np.logical_or(terminated, truncated)
+            per_env_info = info["per_env"]
 
-            for single_env_info in info:
+            for single_env_info in per_env_info:
                 for key in single_env_info.keys():
                     if key not in reward_components_info_episode:
                         reward_components_info_episode[key] = []
 
             for key in reward_components_info_episode.keys():
-                mean_val = np.mean([single_env_info.get(key, 0) for single_env_info in info])
+                mean_val = np.mean([single_env_info.get(key, 0) for single_env_info in per_env_info])
                 reward_components_info_episode[key].append(mean_val)
 
             if training_episode or warmup:

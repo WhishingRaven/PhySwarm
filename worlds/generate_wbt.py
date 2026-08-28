@@ -1,11 +1,13 @@
-# generate_wbt.py
+from pathlib import Path
 
-url_1 = "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackground.proto"
-url_2 = "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
-url_3 = "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/objects/floors/protos/RectangleArena.proto"
-url_4 = "https://raw.githubusercontent.com/cyberbotics/webots/R2023b/projects/robots/gctronic/e-puck/protos/E-puck.proto"
+WEBOTS_VERSION = "R2025a"
+WEBOTS_RAW_ROOT = f"https://raw.githubusercontent.com/cyberbotics/webots/{WEBOTS_VERSION}/projects"
+url_1 = f"{WEBOTS_RAW_ROOT}/objects/backgrounds/protos/TexturedBackground.proto"
+url_2 = f"{WEBOTS_RAW_ROOT}/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+url_3 = f"{WEBOTS_RAW_ROOT}/objects/floors/protos/RectangleArena.proto"
+url_4 = f"{WEBOTS_RAW_ROOT}/robots/gctronic/e-puck/protos/E-puck.proto"
 
-wbt_content = f'#VRML_SIM R2023b utf8\nEXTERNPROTO "{url_1}"\nEXTERNPROTO "{url_2}"\nIMPORTABLE EXTERNPROTO "{url_3}"\nIMPORTABLE EXTERNPROTO "{url_4}"\n'
+wbt_content = f'#VRML_SIM {WEBOTS_VERSION} utf8\nEXTERNPROTO "{url_1}"\nEXTERNPROTO "{url_2}"\nIMPORTABLE EXTERNPROTO "{url_3}"\nIMPORTABLE EXTERNPROTO "{url_4}"\n'
 wbt_content += "WorldInfo {\n  basicTimeStep 20\n}\n"
 Viewpoint = """
 Viewpoint {
@@ -53,7 +55,7 @@ DEF SUPERVISOR Robot {{
 
 SUPERVISOR_content = SUPERVISOR.format(receiver_and_emitter=receivers_emitters)
 wbt_content += SUPERVISOR_content
-with open("generated_world.wbt", "w") as f:
-    f.write(wbt_content)
+output_path = Path(__file__).with_name("generated_world.wbt")
+output_path.write_text(wbt_content, encoding="utf-8")
 
-print("generated_world.wbt has been generated")
+print(f"{output_path} has been generated")

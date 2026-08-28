@@ -1,12 +1,12 @@
 import random
 import numpy as np
-from deepbots.supervisor.controllers.csv_supervisor_env import CSVSupervisorEnv
-from gym.spaces import Discrete, Box
+from gymnasium.spaces import Box, Tuple as SpaceTuple
 import utilities
 import math
-import random
 import torch
 from controller import Supervisor
+from common.gymnasium_api import episode_end_flags
+from common.webots_env import WebotsSupervisorEnv
 from scipy.spatial.distance import pdist, squareform
 from supervisor_controller.utils.util import to_torch
 import matplotlib.pyplot as plt
@@ -14,7 +14,7 @@ import os
 import pandas as pd
 
 
-class Epuck2Supervisor(CSVSupervisorEnv):
+class Epuck2Supervisor(WebotsSupervisorEnv):
     def __init__(self, all_args=None):
         self.args = all_args
         self.num_agents = self.args.num_agents
@@ -80,13 +80,31 @@ class Epuck2Supervisor(CSVSupervisorEnv):
             self.nests.append(nest)
 
         #强化学习空间定义
-        self.action_space = []
-        self.observation_space = []
-        self.state_space = []
-        for i in range(self.num_agents):
-            self.action_space.append(Box(low=-1.0, high=1.0, shape=(self.num_actions,)))
-            self.observation_space.append([self.num_observations])
-            self.state_space.append([self.num_states])
+        self.agent_action_spaces = tuple(
+            Box(low=-1.0, high=1.0, shape=(self.num_actions,), dtype=np.float32)
+            for _ in range(self.num_agents)
+        )
+        self.agent_observation_spaces = tuple(
+            Box(low=-np.inf, high=np.inf, shape=(self.num_observations,), dtype=np.float32)
+            for _ in range(self.num_agents)
+        )
+        self.agent_state_spaces = tuple(
+            Box(low=-np.inf, high=np.inf, shape=(self.num_states,), dtype=np.float32)
+            for _ in range(self.num_agents)
+        )
+        self.action_space = Box(
+            low=-1.0,
+            high=1.0,
+            shape=(self.num_envs, self.num_agents, self.num_actions),
+            dtype=np.float32,
+        )
+        self.observation_space = SpaceTuple((
+            SpaceTuple((
+                Box(-np.inf, np.inf, (self.num_envs, self.num_agents, self.num_observations), dtype=np.float32),
+                Box(0, self.num_agents + self.num_targets, (self.num_envs, self.num_agents, self.obs_neighbor_dim), dtype=np.int32),
+            )),
+            Box(-np.inf, np.inf, (self.num_envs, self.num_agents, self.num_states), dtype=np.float32),
+        ))
 
         #物理与归一化常量
         self.signal_strength = 80
@@ -147,14 +165,15 @@ class Epuck2Supervisor(CSVSupervisorEnv):
         observations = self.get_observations()
         state = self.get_state()
         reward, reward_components_info = self.get_reward(pde_params, observations)
-        done = self.is_done()
+        terminated, truncated = self._get_episode_end_flags()
+        done = np.logical_or(terminated, truncated)
     
         if self.save_data == True:
             self.save_test_data(pde_params, done)
         
-        obs_corr = (observations, self.obs_neighbor_num_buf)
-
-        return obs_corr, state, reward, done, reward_components_info
+        observation = ((observations, self.obs_neighbor_num_buf.copy()), state)
+        info = {"per_env": reward_components_info}
+        return observation, reward, terminated, truncated, info
 
     def save_test_data(self, pde_params, done):
         self.save_path = f'data/expand_3_16.csv'
@@ -500,7 +519,7 @@ class Epuck2Supervisor(CSVSupervisorEnv):
                             translation %f %f %f
                             rotation 0 0 1 %f
                             name "e-puck%d-%d"
-                            controller "epuck_rlcontroller_nonros"
+                            controller "epuck_controller"
                             supervisor FALSE
                             version "2"
                             emitter_channel %d
@@ -584,10 +603,9 @@ class Epuck2Supervisor(CSVSupervisorEnv):
         return message
 
     def _map_actions_to_params(self,raw_action_batch,observations=None,):
-        raw_action_torch = to_torch(raw_action_batch)
-
-        if raw_action_torch.is_cuda:
-            raw_action_torch = raw_action_torch.cpu()
+        raw_action_torch = to_torch(raw_action_batch).detach().to(
+            device="cpu", dtype=torch.float32
+        )
 
         TOTAL_W_BUDGET = 0.13
         MAX_K = 0.085
@@ -1260,19 +1278,17 @@ class Epuck2Supervisor(CSVSupervisorEnv):
 
         return rew_all, infos
 
-    def is_done(self):
+    def _get_episode_end_flags(self):
         self.steps += 1
+        return episode_end_flags(
+            self.alive_agent_buf, self.early_stop, self.steps, self.episode_length
+        )
 
-        dies = np.ones((self.num_envs, self.num_agents, 1), dtype=np.bool_)
-        alives = np.zeros((self.num_envs, self.num_agents, 1), dtype=np.bool_)
-        alives[..., 0] = (~self.alive_agent_buf) 
-        all_agents_done = ~self.alive_agent_buf.any(-1)
-        time_is_up = self.steps >= self.episode_length
-        cond = all_agents_done | time_is_up | self.early_stop[:, 0]
-
-        return np.where(cond[:, np.newaxis, np.newaxis], dies, alives)
-
-    def reset(self):
+    def reset(self, *, seed=None, options=None):
+        super().reset(seed=seed, options=options)
+        if seed is not None:
+            random.seed(seed)
+            np.random.seed(seed)
         self.cleanup()
 
         #self.simulationReset()
@@ -1285,7 +1301,9 @@ class Epuck2Supervisor(CSVSupervisorEnv):
             super(Supervisor, self).step(self.timestep//self.interval)
             self.handle_receiver(-1)
 
-        return None
+        observations = self.get_observations()
+        observation = ((observations, self.obs_neighbor_num_buf.copy()), self.get_state())
+        return observation, {"per_env": [{} for _ in range(self.num_envs)]}
 
     def get_info(self):
-        return None
+        return {"per_env": [{} for _ in range(self.num_envs)]}

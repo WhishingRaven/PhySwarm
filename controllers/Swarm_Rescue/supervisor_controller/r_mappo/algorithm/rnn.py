@@ -4,11 +4,11 @@ from supervisor_controller.utils.util import init, adj_init
 
 class RNNBase(nn.Module):
     """ Identical to rnn_agent, but does not compute value/probability for each action, only the hidden state. """
-    def __init__(self, args, input_shape, hidden_size, out_shape, device=torch.device("cuda:0")):
+    def __init__(self, args, input_shape, hidden_size, out_shape, device=torch.device("cpu")):
         nn.Module.__init__(self)
         self.args = args
         self.use_ReLU = self.args.use_ReLU
-        self.tpdv = dict(dtype=torch.float16, device=device)
+        self.tpdv = dict(dtype=torch.float32, device=device)
         self.use_orthogonal = self.args.use_orthogonal
         self._use_feature_normalization = args.use_feature_normalization
         self.agent_loc_dim = self.args.agent_loc_dim

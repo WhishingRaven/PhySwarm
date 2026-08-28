@@ -1,125 +1,103 @@
 # PhySwarm
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-yellow.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Python 3.8](https://img.shields.io/badge/python-3.8-blue.svg)](https://www.python.org/downloads/release/python-380/)
-[![Webots 2023b](https://img.shields.io/badge/Webots-2023b-green.svg)](https://cyberbotics.com/)
+[![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
+[![Webots R2025a](https://img.shields.io/badge/Webots-R2025a-green.svg)](https://cyberbotics.com/)
 
-This repository is the official implementation of the academic paper **"Physics-Informed Modeling and Control of Emergent Behaviors in Robot Swarms"**. 
+This repository is fork of **“Physics-Informed Modeling and Control of Emergent Behaviors in Robot Swarms”** for MacOS. It aims for rough implementation of method suggested in the paper, not the exact reproduction of the experiment. Libraries for this project is updated to the latest version as possible.
 
-The official project website is available [here](https://physwarm.github.io/).
+PhySwarm is a physics-informed, micro-macro decentralized swarm-control framework. It models multi-stage emergent behavior as density-field evolution under physical constraints and connects that model to executable motion for E-puck robots in Webots. The project website is [physwarm.github.io](https://physwarm.github.io/).
 
-`PhySwarm` is a physics-informed, micro-macro decentralized swarm control framework. It characterizes multi-stage emergent swarm behaviors as density field evolutions under physical constraints, which are integrated with executable robot physical movements. This repository is built on the open-source physics simulation platform Webots, using E-puck differential-wheeled robots as the experimental platform.
+## Scenarios
 
----
+- Trail-guided swarm foraging
+- Formation-reconfigurable swarm navigation
+- Role-adaptive swarm search and rescue
 
-## Task Scenarios
+## Requirements
 
-The framework covers three core multi-agent collaborative task scenarios:
-1. **Trail-Guided Swarm Foraging (Swarm Foraging)**
-2. **Formation-Reconfigurable Swarm Navigation (Swarm Navigation)**
-3. **Role-Adaptive Swarm Search and Rescue (Swarm Rescue)**
+- An Apple Silicon Mac
+- Miniconda, Anaconda, or another compatible `conda` installation
+- The native macOS build of [Webots R2025a](https://github.com/cyberbotics/webots/releases/tag/R2025a), installed as `/Applications/Webots.app`
 
----
+The supported runtime is Python 3.13 with Gymnasium and PyTorch. PyTorch automatically uses the Apple Metal (`mps`) backend when it is available and otherwise falls back to the CPU. No CUDA, NVIDIA, Triton, Rosetta, or Linux toolchain is required.
 
-## 📂 Directory Structure
+## Setup
 
-```text
-PhySwarm/
-├── controllers/
-│   ├── epuck_controller/           # Low-level controller for E-puck robots in Webots
-│   └── controllers/                # High-level decision controllers
-│       ├── Swarm_Foraging/         
-│       │   ├── supervisor_controller/  # Controllers and running scripts
-│       │   ├── models/             # Trained model weight files
-│       │   └── plot/               # Data plotting and video rendering scripts
-│       ├── Swarm_Navigation/       
-│       │   ├── supervisor_controller/
-│       │   ├── models/
-│       │   └── plot/
-│       └── Swarm_Rescue/           
-│           ├── supervisor_controller/
-│           ├── models/
-│           └── plot/
-├── worlds/
-│   ├── generate_wbt.py             # Simulation world generation script
-│   └── generated_world.wbt         # Pre-generated Webots simulation environment file
-├── requirements.txt                # Dependency list (pip)
-└── environment.yml                 # Virtual environment configuration file (conda)
-```
+Create the reproducible conda environment from the repository root:
 
----
-
-## Environment Setup
-
-### 1. Install Webots Simulation Software
-The simulation physical engine of this project is based on **Webots 2023b**.
-- Please visit the [official Webots releases page](https://github.com/cyberbotics/webots/releases/tag/R2023b) to download and install the version compatible with your operating system.
-
-### 2. Install Anaconda/Miniconda
-It is recommended to use Anaconda or Miniconda to manage your Python virtual environments.
-- Please visit the [official Anaconda website](https://www.anaconda.com/) or the [official Miniconda website](https://docs.conda.io/en/latest/miniconda.html) to complete the installation.
-
-### 3. Configure Python Virtual Environment
-This project is configured on Ubuntu **20.04** with Python **3.8.20**. You can install dependencies using either of the following methods:
-
-**Method A: Use Conda configuration file (`environment.yml`)**
 ```bash
 conda env create -f environment.yml
 conda activate physwarm
 ```
 
-**Method B: Use Pip dependency file (`requirements.txt`)**
+If Webots is installed somewhere else, point `WEBOTS_HOME` to its application bundle. For an interactive shell, configure the controller runtime with:
+
 ```bash
-# Create and activate environment
-conda create -n physwarm python=3.8.20 -y
+export WEBOTS_HOME="/Applications/Webots.app"
+export PYTHONPATH="$WEBOTS_HOME/Contents/lib/controller/python${PYTHONPATH:+:$PYTHONPATH}"
+export DYLD_LIBRARY_PATH="$WEBOTS_HOME/Contents/lib/controller${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+export PYTORCH_ENABLE_MPS_FALLBACK=1
+```
+
+Verify the installation:
+
+```bash
+python -c "import controller, gymnasium, torch; print(torch.__version__); print('mps' if torch.backends.mps.is_available() else 'cpu')"
+python -m pip check
+```
+
+`requirements.txt` contains the same Python dependencies for tools that need a pip requirements file. The conda environment remains the supported installation path.
+
+## Run a scenario
+
+The checked-in world is ready to use. To regenerate it with Webots R2025a references:
+
+```bash
+python worlds/generate_wbt.py
+```
+
+Open `worlds/generated_world.wbt` in Webots R2025a and start the simulation. Its supervisor uses Webots' `<extern>` controller mode on `ipc://1234/supervisor`. In another terminal, activate the conda environment and launch one scenario:
+
+```bash
 conda activate physwarm
-
-# Install dependencies
-pip install -r requirements.txt
+sh controllers/Swarm_Foraging/supervisor_controller/train_mappo.sh
 ```
 
----
+The navigation and rescue launchers are at:
 
-## Quick Start
+```text
+controllers/Swarm_Navigation/supervisor_controller/train_mappo.sh
+controllers/Swarm_Rescue/supervisor_controller/train_mappo.sh
+```
 
-### 1. Clone this Repository
+Each launcher configures the native Webots libraries, defaults `WEBOTS_CONTROLLER_URL` to that local supervisor URL, and passes `--device auto`. Override `WEBOTS_CONTROLLER_URL` when Webots uses another port. To force a backend, invoke `train_prey.py` from the relevant `supervisor_controller` directory with `--device mps` or `--device cpu`. An unavailable requested MPS backend emits a warning and safely uses the CPU.
+
+Local TensorBoardX logging is the default. Pass `--wandb` only when you intentionally want to enable Weights & Biases network logging.
+
+## Gymnasium API
+
+The vectorized supervisors use Gymnasium's reset and step contracts:
+
+```python
+observation, info = env.reset(seed=seed)
+observation, rewards, terminated, truncated, info = env.step(actions)
+done = terminated | truncated
+```
+
+The structured observation is `((agent_observations, neighbor_counts), shared_state)`. Per-environment diagnostics are stored in `info["per_env"]`. See [MIGRATION.md](MIGRATION.md) for the compatibility boundary and rollback procedure.
+
+## Tests
+
+Run the automated checks in the supported environment:
+
 ```bash
-git clone https://github.com/SICC-Group/PhySwarm.git
-cd PhySwarm
+conda run -n physwarm python -m pip check
+conda run -n physwarm pytest -q
 ```
 
-### 2. Generate Simulation World Files
-The `worlds/` directory already contains the pre-generated `generated_world.wbt` scene file. If you need to customize the environment or regenerate the simulation world, navigate to that directory and run the script:
-```bash
-cd worlds
-python generate_wbt.py
-cd ..
-```
-
-### 3. Run Simulation Models
-1. **Launch Simulation Environment**: Open Webots, select and load the `worlds/generated_world.wbt` world file.
-2. **Run Controllers**: This project supports three task scenarios. Each scenario is pre-configured with a pre-trained model loading path (`model_dir`), allowing you to run the corresponding shell script directly for evaluation or continued training.
-   
-   For example, to run the **Trail-Guided Swarm Foraging (Swarm Foraging)** scenario:
-   ```bash
-   cd controllers/controllers/Swarm_Foraging/supervisor_controller
-   bash train_mappo.sh
-   ```
-   For **Swarm_Navigation** or **Swarm_Rescue**, the procedure is similar. Simply navigate to their respective `supervisor_controller` directories and execute `bash train_mappo.sh`.
-
-> **Note**: The low-level kinematics driver for the e-puck robots in Webots is managed by `controllers/epuck_controller`. Please ensure the controller settings for the Webots robot nodes are correctly bound.
-
----
-
-## Data Visualization
-The scripts used to generate the line plots, potential field figures, and multimedia videos (MP4) presented in the main text and supplementary materials are preserved in the `plot/` folders of each task directory.
-To regenerate the figures or videos, navigate to the corresponding directory and execute the Python scripts:
-```bash
-cd controllers/controllers/Swarm_Foraging/plot
-python draw_*.py
-```
-
----
+The plotting and video scripts for each task are under the corresponding `controllers/Swarm_*/plot` directory.
 
 ## License
-This project is licensed under the **GNU General Public License v3.0 (GPLv3)**. For more details on rights and limitations, please refer to the [LICENSE](LICENSE) file in the root directory.
+
+PhySwarm is licensed under the [GNU General Public License v3.0](LICENSE).
