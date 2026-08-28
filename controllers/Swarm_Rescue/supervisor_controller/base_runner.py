@@ -408,7 +408,7 @@ class RecRunner(object):
                 if self.use_wandb:
                     wandb.log({suffix_k: value}, step=self.total_env_steps)
                 else:
-                    self.writter.add_scalars(suffix_k, {suffix_k: value}, self.total_env_steps)
+                    self.writter.add_scalar(suffix_k, value, self.total_env_steps)
                 log_data[k] = value
 
         self._append_csv_row(progress_filename, log_data)
@@ -425,7 +425,7 @@ class RecRunner(object):
                 if self.use_wandb:
                     wandb.log({k: value}, step=self.total_env_steps)
                 else:
-                    self.writter.add_scalars(k, {k: value}, self.total_env_steps)
+                    self.writter.add_scalar(k, value, self.total_env_steps)
 
         if len(log_data) == 1:
             return
