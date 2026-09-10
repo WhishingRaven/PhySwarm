@@ -16,3 +16,11 @@ __pycache__/
 
 # Log
 *.local
+
+# PDF
+*.pdf
+
+# Runtime outputs
+/results/
+/controllers/Swarm_*/results/
+/controllers/Swarm_*/logs/

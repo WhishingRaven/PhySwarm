@@ -83,7 +83,7 @@ Confirm the selected compute backend:
 conda run -n physwarm python -c "import torch; print('mps' if torch.backends.mps.is_available() else 'cpu')"
 ```
 
-For the Webots smoke check, export the variables from the forward path, open `worlds/generated_world.wbt` in Webots R2025a, start the simulation, and launch each scenario's external supervisor from its `supervisor_controller` directory. Verify that:
+For the Webots smoke check, run `python train.py foraging --webots fast` with the short-rollout overrides in `docs/reproduction.md`. Repeat with `navigation` and `rescue`. The Python adapter configures the native paths and owns the Webots process. Verify that:
 
 - the `controller` module imports from the R2025a application bundle;
 - the external supervisor connects to the `<extern>` robot;

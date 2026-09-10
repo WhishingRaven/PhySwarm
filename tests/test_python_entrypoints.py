@@ -1,0 +1,76 @@
+from __future__ import annotations
+
+import getpass
+import os
+import sys
+from pathlib import Path
+
+import pytest
+
+from adapters.webots.launcher import external_controller_endpoint
+from app.execute import controller_command
+from learning.rmappo.config import get_config
+from tasks.profiles import get_task_profile
+
+
+def test_webots_controller_url_maps_to_extern_endpoint():
+    endpoint = external_controller_endpoint("ipc://1234/supervisor")
+    assert endpoint == Path(f"/tmp/webots/{getpass.getuser()}/1234/ipc/supervisor/extern")
+
+
+@pytest.mark.parametrize("invalid", ["", "tcp://1234/supervisor", "ipc://x/name", "ipc://1234/"])
+def test_webots_controller_url_rejects_invalid_values(invalid):
+    with pytest.raises(ValueError):
+        external_controller_endpoint(invalid)
+
+
+def test_task_profiles_preserve_scenario_specific_rollout_defaults():
+    assert get_task_profile("foraging").episode_length == 1000
+    assert get_task_profile("navigation").extra[-2:] == ("--num_obs_targets", "0")
+    assert get_task_profile("rescue").targets == 1
+
+
+@pytest.mark.parametrize("scenario", ("foraging", "navigation", "rescue"))
+def test_task_profile_arguments_are_all_owned_by_shared_config(scenario):
+    get_config(scenario).parse_args(get_task_profile(scenario).training_arguments())
+
+
+def test_train_command_uses_python_and_forwards_overrides():
+    command, cwd = controller_command(
+        "train", "foraging", extra=("--num_env_steps", "4")
+    )
+    assert command[0] == sys.executable
+    assert command[1:5] == ["-m", "app.controller_process", "train", "foraging"]
+    assert cwd.name == "PhySwarm"
+    assert command[-2:] == ["--num_env_steps", "4"]
+
+
+def test_evaluation_normalizes_model_directory_and_episode_count(tmp_path):
+    command, _ = controller_command(
+        "evaluate", "navigation", model_dir=tmp_path / "models", episodes=3
+    )
+    index = command.index("--model_dir")
+    assert command[index + 1].endswith(os.sep)
+    assert command[-2:] == ["--num_eval_episodes", "3"]
+
+
+def test_resume_requires_checkpoint_directory():
+    with pytest.raises(ValueError, match="requires --model-dir"):
+        controller_command("train", "rescue", resume=True)
+
+
+def test_old_scenario_execution_trees_have_no_python_or_shell_entrypoints():
+    root = Path(__file__).resolve().parents[1]
+    for directory in ("Swarm_Foraging", "Swarm_Navigation", "Swarm_Rescue"):
+        old_root = root / "controllers" / directory / "supervisor_controller"
+        assert not list(old_root.rglob("*.py"))
+        assert not list(old_root.rglob("*.sh"))
+
+
+def test_learning_core_does_not_import_webots_adapter():
+    root = Path(__file__).resolve().parents[1]
+    source = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (root / "learning").rglob("*.py")
+    )
+    assert "adapters.webots" not in source

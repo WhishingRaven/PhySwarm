@@ -4,7 +4,7 @@
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
 [![Webots R2025a](https://img.shields.io/badge/Webots-R2025a-green.svg)](https://cyberbotics.com/)
 
-This repository is fork of **“Physics-Informed Modeling and Control of Emergent Behaviors in Robot Swarms”** for MacOS. It aims for rough implementation of method suggested in the paper, not the exact reproduction of the experiment. Libraries for this project is updated to the latest version as possible.
+This repository is a macOS reproduction workbench for **“Physics-Informed Modeling and Control of Emergent Behaviors in Robot Swarms.”** It provides one shared rMAPPO pipeline, task-specific physics strategies, isolated Webots/Gymnasium adapters, and simulator-independent implementations of the paper's density, ADR, Micro-EDM, loss, metric, and analysis primitives. The checked-in models and short smoke tests are not a complete numerical reproduction of the paper; see the [implementation audit](docs/paper-implementation-audit.md) for the evidence and remaining gaps.
 
 PhySwarm is a physics-informed, micro-macro decentralized swarm-control framework. It models multi-stage emergent behavior as density-field evolution under physical constraints and connects that model to executable motion for E-puck robots in Webots. The project website is [physwarm.github.io](https://physwarm.github.io/).
 
@@ -31,19 +31,16 @@ conda env create -f environment.yml
 conda activate physwarm
 ```
 
-If Webots is installed somewhere else, point `WEBOTS_HOME` to its application bundle. For an interactive shell, configure the controller runtime with:
+If Webots is installed somewhere else, point `WEBOTS_HOME` to its application bundle:
 
 ```bash
 export WEBOTS_HOME="/Applications/Webots.app"
-export PYTHONPATH="$WEBOTS_HOME/Contents/lib/controller/python${PYTHONPATH:+:$PYTHONPATH}"
-export DYLD_LIBRARY_PATH="$WEBOTS_HOME/Contents/lib/controller${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
-export PYTORCH_ENABLE_MPS_FALLBACK=1
 ```
 
 Verify the installation:
 
 ```bash
-python -c "import controller, gymnasium, torch; print(torch.__version__); print('mps' if torch.backends.mps.is_available() else 'cpu')"
+python -c "from adapters.webots.runtime import configure_webots_runtime; configure_webots_runtime(); import controller, gymnasium, torch; print(torch.__version__); print('mps' if torch.backends.mps.is_available() else 'cpu')"
 python -m pip check
 ```
 
@@ -57,33 +54,30 @@ The checked-in world is ready to use. To regenerate it with Webots R2025a refere
 python worlds/generate_wbt.py
 ```
 
-The scenario launchers can manage Webots for you. Their first argument selects the simulation mode:
+The Python entrypoints manage Webots and the external controller lifecycle. `--webots` selects the simulation mode:
 
 - `fast`: headless, no rendering, maximum simulation speed.
-- `slow`: visible Webots GUI in realtime mode.
+- `realtime`: visible Webots GUI in realtime mode.
 - `existing` (default): use the Webots world you already opened yourself.
 
-For a fast background evaluation:
+For a new training run in fast background mode:
 
 ```bash
-conda activate physwarm
-sh controllers/Swarm_Foraging/supervisor_controller/train_mappo.sh fast
+python train.py foraging --webots fast
 ```
 
-For visible realtime evaluation, use `slow` instead. The Webots process started by either mode is stopped when the evaluation exits. The launcher accepts additional `train_prey.py` options after the mode; for a short check, use:
+Any additional options are validated by the shared rMAPPO configuration. Evaluation and inference are explicit commands:
 
 ```bash
-sh controllers/Swarm_Foraging/supervisor_controller/train_mappo.sh fast --episode_length 20 --num_eval_episodes 1
+python evaluate.py foraging --webots fast \
+  --model-dir controllers/Swarm_Foraging/models \
+  --episodes 10
+
+python infer.py foraging --webots realtime \
+  --model-dir controllers/Swarm_Foraging/models
 ```
 
-The navigation and rescue launchers are at:
-
-```text
-controllers/Swarm_Navigation/supervisor_controller/train_mappo.sh
-controllers/Swarm_Rescue/supervisor_controller/train_mappo.sh
-```
-
-Each launcher configures the native Webots libraries, defaults `WEBOTS_CONTROLLER_URL` to `ipc://1234/supervisor`, and passes `--device auto`. Override `WEBOTS_CONTROLLER_URL` when Webots uses another port. To force a backend, invoke `train_prey.py` from the relevant `supervisor_controller` directory with `--device mps` or `--device cpu`. An unavailable requested MPS backend emits a warning and safely uses the CPU.
+Use `navigation` or `rescue` in place of `foraging`. The Webots process is stopped when the Python command exits. Resume with `python train.py SCENARIO --webots fast --resume --model-dir PATH`. The adapter defaults to `ipc://1234/supervisor`; override it with `--controller-url`. Pass `--device mps` or `--device cpu` after the common options to force a backend. An unavailable requested MPS backend warns and falls back to CPU. The complete contract is in [docs/reproduction.md](docs/reproduction.md).
 
 Local TensorBoardX logging is the default. Pass `--wandb` only when you intentionally want to enable Weights & Biases network logging.
 
@@ -108,7 +102,30 @@ conda run -n physwarm python -m pip check
 conda run -n physwarm pytest -q
 ```
 
-The plotting and video scripts for each task are under the corresponding `controllers/Swarm_*/plot` directory.
+Generate a deterministic report from a trajectory or training CSV with:
+
+```bash
+conda run -n physwarm python -m analysis \
+  --input /path/to/data.csv \
+  --output /path/to/report \
+  --scenario auto
+```
+
+The command writes a machine-readable summary and multiple task-aware plots without changing the input. See [docs/experiments.md](docs/experiments.md). The older figure-specific plotting and video scripts remain under each `controllers/Swarm_*/plot` directory.
+
+New runs can emit that trajectory input directly with
+`--save_trajectory --trajectory_output /absolute/path/to/run.csv`. Logging is
+single-environment and non-overwriting by design; see
+[docs/reproduction.md](docs/reproduction.md#7-실행-산출물) for the episode naming
+contract.
+
+## Documentation
+
+- [Architecture and responsibility boundaries](docs/architecture.md)
+- [Paper-to-code implementation audit](docs/paper-implementation-audit.md)
+- [Training, evaluation, and reproduction procedure](docs/reproduction.md)
+- [Metrics and experiment reports](docs/experiments.md)
+- [Extending the methodology without changing the tasks](docs/extending-methodology.md)
 
 ## License
 

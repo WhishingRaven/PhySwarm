@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+# ``pytest`` 콘솔 스크립트로 실행해도 저장소 루트의 physwarm 패키지를 찾는다.
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra"
+

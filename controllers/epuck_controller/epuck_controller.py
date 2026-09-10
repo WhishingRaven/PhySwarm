@@ -2,22 +2,28 @@
 from pathlib import Path
 import sys
 
-CONTROLLERS_ROOT = Path(__file__).resolve().parents[1]
-if str(CONTROLLERS_ROOT) not in sys.path:
-    sys.path.insert(0, str(CONTROLLERS_ROOT))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-from common.webots_runtime import configure_webots_runtime
+from adapters.webots.runtime import configure_webots_runtime
 
 configure_webots_runtime()
 
-from common.csv_robot import CSVRobot
-from Swarm_Foraging.supervisor_controller.config import get_config
-args = get_config().parse_known_args()[0]
+from adapters.webots.csv_robot import CSVRobot
+from adapters.webots.robot_runtime import parse_robot_runtime_options
+
+
+# Webots starts this process independently of every task supervisor.  Parse only
+# the transport/timing flags used below so this common controller never imports a
+# scenario's observation, reward, or learning configuration.
+args = parse_robot_runtime_options()
 
 class Epuck2Robot(CSVRobot):
     def __init__(self):
         super().__init__(timestep=args.timestep)
         self.interval = args.interval
+        self.basic_timestep = args.basic_timestep
         self.max_speed = 6.28
         self.robot_name = self.getName()[-1]
         self.timestep = args.timestep
@@ -29,9 +35,9 @@ class Epuck2Robot(CSVRobot):
             self.ps_sensor[i].enable(self.timestep)
 
         self.gyro = self.getDevice("gyro")
-        self.gyro.enable(self.timestep//self.interval)
+        self.gyro.enable(self.basic_timestep)
         self.accelerometer = self.getDevice("accelerometer")
-        self.accelerometer.enable(self.timestep//self.interval)
+        self.accelerometer.enable(self.basic_timestep)
 
         self.wheels = []
         for wheel_name in ['left wheel motor', 'right wheel motor']:
@@ -42,7 +48,7 @@ class Epuck2Robot(CSVRobot):
 
     def run(self):
         i = 0
-        while self.step(self.timestep//self.interval) != -1:
+        while self.step(self.basic_timestep) != -1:
             if i%self.interval == 0:
                 self.handle_receiver()
                 i = 0
