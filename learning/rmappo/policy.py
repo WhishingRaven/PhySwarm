@@ -75,6 +75,10 @@ class R_MAPPOPolicy(MLPPolicy):
             input_batch = to_torch(obs)
         
         q_batch, new_rnn_states, no_sequence = self.rnn_network(input_batch.to(**self.tpdv), to_torch(rnn_states).to(**self.tpdv), to_torch(obs_neighbor_num).to(self.device))
+        q_batch = torch.nan_to_num(q_batch, nan=0.0, posinf=10.0, neginf=-10.0)
+        new_rnn_states = torch.nan_to_num(
+            new_rnn_states, nan=0.0, posinf=10.0, neginf=-10.0
+        )
         #import pdb;pdb.set_trace()
         return q_batch,new_rnn_states,no_sequence
 
@@ -91,6 +95,10 @@ class R_MAPPOPolicy(MLPPolicy):
         input_batch = to_torch(obs).to(**self.tpdv)
         rnn_states_torch = to_torch(rnn_states).to(**self.tpdv)
         q_batch, new_rnn_states, no_sequence = self.rnn_critic_network(input_batch, rnn_states_torch)
+        q_batch = torch.nan_to_num(q_batch, nan=0.0, posinf=10.0, neginf=-10.0)
+        new_rnn_states = torch.nan_to_num(
+            new_rnn_states, nan=0.0, posinf=10.0, neginf=-10.0
+        )
         
         return q_batch, new_rnn_states, no_sequence
 

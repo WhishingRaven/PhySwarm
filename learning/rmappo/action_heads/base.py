@@ -66,6 +66,11 @@ class NamedDiagGaussian(nn.Module):
         inputs = torch.cat((rnn_states, obs), dim=-1)
         if self.sanitize_inputs:
             inputs = torch.clamp(inputs, -10.0, 10.0)
+        elif not torch.isfinite(inputs).all():
+            # A transient non-finite recurrent feature must not make the
+            # distribution constructor abort an otherwise recoverable rollout.
+            # Finite inputs follow the historical path byte-for-byte.
+            inputs = torch.nan_to_num(inputs, nan=0.0, posinf=10.0, neginf=-10.0)
 
         means = []
         log_stds = []
@@ -90,7 +95,27 @@ class NamedDiagGaussian(nn.Module):
                 self.logstd_min,
                 self.logstd_max,
             )
-        return Normal(mean, torch.exp(log_std), validate_args=not self.sanitize_inputs)
+        else:
+            # Keep all finite legacy outputs unchanged while giving NaN/Inf a
+            # deterministic fallback suitable for both sampling and evaluation.
+            mean = torch.nan_to_num(mean, nan=0.0, posinf=5.0, neginf=-5.0)
+            log_std = torch.nan_to_num(
+                log_std,
+                nan=self.logstd_bias,
+                posinf=self.logstd_max,
+                neginf=self.logstd_min,
+            )
+
+        scale = torch.exp(log_std)
+        if not torch.isfinite(scale).all() or not torch.all(scale > 0):
+            scale = torch.nan_to_num(
+                scale,
+                nan=math.exp(self.logstd_bias),
+                posinf=math.exp(self.logstd_max),
+                neginf=math.exp(self.logstd_min),
+            )
+            scale = torch.clamp(scale, min=torch.finfo(scale.dtype).tiny)
+        return Normal(mean, scale, validate_args=not self.sanitize_inputs)
 
 
 class Categorical(nn.Module):

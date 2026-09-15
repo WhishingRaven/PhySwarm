@@ -334,6 +334,25 @@ def test_foraging_actor_channel_order_matches_environment_contract() -> None:
     )
 
 
+def test_foraging_actor_recovers_from_nonfinite_recurrent_features() -> None:
+    layer = DiagGaussian(
+        args=None,
+        act_dim=7,
+        rnn_input_dim=64,
+        obs_dim=17,
+        device=torch.device("cpu"),
+    )
+
+    distribution = layer(
+        torch.full((8, 64), float("nan")),
+        torch.zeros((8, 17)),
+    )
+
+    assert torch.isfinite(distribution.loc).all()
+    assert torch.isfinite(distribution.scale).all()
+    assert torch.all(distribution.scale > 0)
+
+
 @pytest.mark.parametrize(
     "scenario_key",
     SCENARIOS,

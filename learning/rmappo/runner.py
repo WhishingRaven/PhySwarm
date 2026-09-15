@@ -205,7 +205,9 @@ class RecurrentRunner:
             self.trainer.lr_decay(self.total_env_steps, self.num_env_steps)
 
         # The run() function is always for training, so we always explore.
+        rollout_started = time.perf_counter()
         env_info = self.collecter(explore=True, training_episode=True, warmup=False)
+        self._print_rollout_status(env_info, time.perf_counter() - rollout_started)
 
         # 2. Store collected environment info for logging
         for k, v in env_info.items():
@@ -215,27 +217,95 @@ class RecurrentRunner:
 
         # 3. Train the policies if enough new episodes have been collected
         if ((self.num_episodes_collected - self.last_train_episode) / self.train_interval_episode) >= 1:
+            print(
+                "[update] start "
+                f"episodes={self.num_episodes_collected} "
+                f"buffer={self._buffer_episode_count()}/{self.buffer_size}"
+            )
+            update_started = time.perf_counter()
             self.train()
             self.buffer.after_update()
             self.total_train_steps += 1
-            self.last_train_episode = self.num_episodes_collected           
+            self.last_train_episode = self.num_episodes_collected
+            self._print_update_status(time.perf_counter() - update_started)
             
         # 4. Log training and environment info periodically
         if ((self.total_env_steps - self.last_log_T) / self.log_interval) >= 1:
             self.last_log_T = self.total_env_steps
             self.log()
             
-        # 5. Perform periodic evaluation during training
-        if self.use_eval and ((self.total_env_steps - self.last_eval_T) / self.eval_interval) >= 1:
-            self.last_eval_T = self.total_env_steps
-            self.eval()
-            
-        # 6. Save the models periodically
+        # 5. Save before evaluation so a failed/aborted evaluation cannot discard
+        # the latest completed training interval.
         if self.use_save and ((self.total_env_steps - self.last_save_T) / self.save_interval) >= 1:
             self.last_save_T = self.total_env_steps
             self.saver(is_checkpoint=True)
 
+        # 6. Perform periodic evaluation during training
+        if self.use_eval and ((self.total_env_steps - self.last_eval_T) / self.eval_interval) >= 1:
+            self.last_eval_T = self.total_env_steps
+            self.eval()
+
         return self.total_env_steps
+
+    @staticmethod
+    def _console_number(value, precision=4):
+        """Format scalar telemetry without letting a missing metric break training."""
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return "n/a"
+        return f"{number:.{precision}f}" if np.isfinite(number) else "nonfinite"
+
+    def _print_rollout_status(self, env_info, rollout_seconds):
+        completed = self.total_env_steps
+        total = self.num_env_steps
+        progress = (100.0 * completed / total) if total else 0.0
+        rollout_steps = self.num_envs * self.episode_length
+        rate = rollout_steps / rollout_seconds if rollout_seconds > 0 else 0.0
+        remaining = max(total - completed, 0)
+        eta_seconds = remaining / rate if rate > 0 else float("inf")
+        eta = "n/a" if not np.isfinite(eta_seconds) else f"{eta_seconds / 60.0:.1f}m"
+        pending = max(
+            self.train_interval_episode - (
+                self.num_episodes_collected - self.last_train_episode
+            ),
+            0,
+        )
+        print(
+            "[rollout] "
+            f"step={completed:,}/{total:,} ({progress:.2f}%) "
+            f"episode={self.num_episodes_collected:,} "
+            f"reward={self._console_number(env_info.get('average_episode_rewards'))} "
+            f"collisions={self._console_number(env_info.get('num_collision'), 2)} "
+            f"buffer={self._buffer_episode_count()}/{self.buffer_size} "
+            f"update_in={pending}ep "
+            f"time={rollout_seconds:.1f}s eta={eta}"
+        )
+
+    def _print_update_status(self, update_seconds):
+        keys = (
+            "actor_loss",
+            "critic_loss",
+            "entropy",
+            "grad_norm_actor",
+            "grad_norm_critic",
+            "pinn_loss",
+            "skipped_actor_update",
+            "skipped_critic_update",
+        )
+        metrics = []
+        for key in keys:
+            values = self.train_infos.get(key, [])
+            if values:
+                metrics.append(f"{key}={self._console_number(np.mean(values))}")
+        details = " ".join(metrics) if metrics else "no metrics"
+        print(
+            f"[update] done step={self.total_env_steps:,} "
+            f"updates={self.total_train_steps} time={update_seconds:.1f}s {details}"
+        )
+
+    def _buffer_episode_count(self):
+        return len(self.buffer) if hasattr(self, "buffer") else 0
 
     def batch_train(self):
         """Do a q-learning update to policy (used for QMix and VDN)."""
@@ -309,7 +379,13 @@ class RecurrentRunner:
         # 恢复训练进度
         self.total_env_steps = checkpoint['total_env_steps']
         self.num_episodes_collected = checkpoint['num_episodes_collected']
-        self.last_train_episode = checkpoint['last_train_episode']
+        checkpoint_last_train_episode = checkpoint['last_train_episode']
+        # PPOBuffer is intentionally process-local and is not part of the
+        # checkpoint. Any episodes collected since the previous update were
+        # therefore discarded when the old process stopped. Start a fresh
+        # on-policy collection window instead of treating those missing
+        # episodes as available for the next mini-batch.
+        self.last_train_episode = self.num_episodes_collected
         self.last_save_T = checkpoint['last_save_T']
         self.last_log_T = checkpoint['last_log_T']
         self.last_eval_T = checkpoint['last_eval_T']
@@ -323,6 +399,12 @@ class RecurrentRunner:
             for p_id, state_dict in checkpoint['value_normalizer_state'].items():
                 self.trainer.value_normalizer[p_id].load_state_dict(state_dict)
 
+        discarded_episodes = self.num_episodes_collected - checkpoint_last_train_episode
+        if discarded_episodes > 0:
+            print(
+                "Resume starts with an empty rollout buffer; "
+                f"discarded {discarded_episodes} stale buffered episode(s)."
+            )
         print(f"Resumed training from step {self.total_env_steps}")
 
     def restore(self):

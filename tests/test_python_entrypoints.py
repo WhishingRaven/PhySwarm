@@ -4,12 +4,15 @@ import getpass
 import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+import torch
 
 from adapters.webots.launcher import external_controller_endpoint
 from app.execute import controller_command
 from learning.rmappo.config import get_config
+from learning.rmappo.runner import RecurrentRunner
 from tasks.profiles import get_task_profile
 
 
@@ -57,6 +60,76 @@ def test_evaluation_normalizes_model_directory_and_episode_count(tmp_path):
 def test_resume_requires_checkpoint_directory():
     with pytest.raises(ValueError, match="requires --model-dir"):
         controller_command("train", "rescue", resume=True)
+
+
+def test_training_checkpoint_precedes_periodic_evaluation(capsys):
+    runner = RecurrentRunner.__new__(RecurrentRunner)
+    events = []
+    runner.trainer = SimpleNamespace(prep_rollout=lambda: None)
+    runner.use_linear_lr_decay = False
+    runner.collecter = lambda **kwargs: {}
+    runner.env_infos = {}
+    runner.num_episodes_collected = 0
+    runner.last_train_episode = 0
+    runner.train_interval_episode = 32
+    runner.total_env_steps = 100
+    runner.num_env_steps = 100
+    runner.num_envs = 1
+    runner.episode_length = 100
+    runner.buffer_size = 32
+    runner.last_log_T = 100
+    runner.log_interval = 100
+    runner.use_save = True
+    runner.last_save_T = 0
+    runner.save_interval = 100
+    runner.saver = lambda **kwargs: events.append("save")
+    runner.use_eval = True
+    runner.last_eval_T = 0
+    runner.eval_interval = 100
+    runner.eval = lambda: events.append("eval")
+
+    runner.run()
+
+    assert events == ["save", "eval"]
+    assert "[rollout] step=100/100 (100.00%)" in capsys.readouterr().out
+
+
+def test_checkpoint_resume_restarts_empty_on_policy_collection_window(tmp_path):
+    class OptimizerStub:
+        def __init__(self):
+            self.loaded_state = None
+
+        def load_state_dict(self, state):
+            self.loaded_state = state
+
+    checkpoint_path = tmp_path / "checkpoint.pt"
+    torch.save(
+        {
+            "total_env_steps": 1_950_000,
+            "num_episodes_collected": 1_950,
+            "last_train_episode": 1_920,
+            "last_save_T": 1_950_000,
+            "last_log_T": 1_950_000,
+            "last_eval_T": 1_900_000,
+            "actor_optimizer_state_dict": {"state": {}, "param_groups": []},
+            "critic_optimizer_state_dict": {"state": {}, "param_groups": []},
+        },
+        checkpoint_path,
+    )
+    runner = RecurrentRunner.__new__(RecurrentRunner)
+    runner.checkpoint_path = str(checkpoint_path)
+    runner.device = torch.device("cpu")
+    runner.trainer = SimpleNamespace(
+        actor_optimizer=OptimizerStub(),
+        critic_optimizer=OptimizerStub(),
+        _use_valuenorm=False,
+    )
+
+    runner.load_checkpoint()
+
+    assert runner.total_env_steps == 1_950_000
+    assert runner.num_episodes_collected == 1_950
+    assert runner.last_train_episode == 1_950
 
 
 def test_old_scenario_execution_trees_have_no_python_or_shell_entrypoints():

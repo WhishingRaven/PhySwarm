@@ -192,12 +192,19 @@ class SwarmRolloutRunner(RecurrentRunner):
 
     def eval(self):
         """Collect episodes to evaluate the policy."""
-        print("Eval start!")
+        total_eval_episodes = self.args.num_eval_episodes
+        print(
+            f"[eval] start step={self.total_env_steps:,} "
+            f"episodes={total_eval_episodes}"
+        )
         self.trainer.prep_rollout()
+        eval_started = time.perf_counter()
 
         eval_infos = {}  
 
-        for _ in range(self.args.num_eval_episodes):
+        report_every = max(1, total_eval_episodes // 10)
+        for episode_index in range(total_eval_episodes):
+            episode_started = time.perf_counter()
             env_info = self.collecter(explore=False, training_episode=False, warmup=False)
             
             for k, v in env_info.items():
@@ -205,7 +212,23 @@ class SwarmRolloutRunner(RecurrentRunner):
                     eval_infos[k] = []
                 eval_infos[k].append(v)
 
+            if (
+                (episode_index + 1) % report_every == 0
+                or episode_index + 1 == total_eval_episodes
+            ):
+                print(
+                    "[eval] "
+                    f"episode={episode_index + 1}/{total_eval_episodes} "
+                    f"reward={self._console_number(env_info.get('average_episode_rewards'))} "
+                    f"collisions={self._console_number(env_info.get('num_collision'), 2)} "
+                    f"time={time.perf_counter() - episode_started:.1f}s"
+                )
+
         self.log_env(eval_infos, suffix="eval_")
+        print(
+            f"[eval] complete step={self.total_env_steps:,} "
+            f"time={time.perf_counter() - eval_started:.1f}s"
+        )
 
     def log_clear(self):
         """See parent class."""
